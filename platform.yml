@@ -1,0 +1,42 @@
+manifestVersion: "1"
+
+app:
+  name: inflation-o-mat
+  displayName: "Inflation-o-mat"
+  version: "0.1.0"
+
+web:
+  local:
+    host: inflation-o-mat.local
+    basePath: /
+
+docker:
+  dockerfile: Dockerfile
+  context: .
+
+runtime:
+  port: 5000
+  healthcheck: /api/health
+
+database:
+  type: mysql
+  database: inflation
+  # Die Plattform erzeugt einen schlanken mysql://-String ohne Treiber.
+  # Die App baut die SQLAlchemy-URL selbst aus MYSQL_HOST/-USER/-PASSWORD/-DATABASE.
+  urlEnvironmentVariable: PLATFORM_DATABASE_URL
+
+environment:
+  SECRET_KEY:
+    source: INFLATION_O_MAT_SECRET_KEY
+    generate: secret
+  OPENAI_API_KEY:
+    source: OPENAI_API_KEY
+    required: false
+  OPENAI_MODEL:
+    source: OPENAI_MODEL
+    required: false
+    default: gpt-4.1-mini
+  COOKIE_SECURE:
+    source: COOKIE_SECURE
+    required: false
+    default: "false"

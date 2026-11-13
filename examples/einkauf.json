@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "purchases": [
+    {
+      "purchased_at": "2026-10-01",
+      "merchant": "Beispielmarkt",
+      "branch": "Beispielfiliale",
+      "city": "Dresden",
+      "postal_code": "01067",
+      "country": "DE",
+      "channel": "store",
+      "currency": "EUR",
+      "status": "draft",
+      "receipt_total": "5.00",
+      "notes": "BEISPIEL – vor Übernahme ändern.",
+      "items": [
+        {
+          "product_id": null,
+          "raw_name": "Beispiel-Kaffee",
+          "quantity": "2",
+          "package_size": "500",
+          "unit": "g",
+          "line_total": "5.00",
+          "discount": "0",
+          "deposit": "0",
+          "is_offer": false,
+          "is_return": false,
+          "attributes": {}
+        }
+      ]
+    }
+  ]
+}

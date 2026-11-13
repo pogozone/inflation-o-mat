@@ -1,0 +1,2 @@
+purchase_key;purchased_at;merchant;branch;city;postal_code;country;raw_name;quantity;package_size;unit;line_total;discount;deposit
+beispiel-1;2026-10-01;Beispielmarkt;Beispielfiliale;Dresden;01067;DE;Beispiel-Kaffee;2;500;g;5,00;0;0
