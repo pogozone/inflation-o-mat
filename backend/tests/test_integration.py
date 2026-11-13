@@ -32,7 +32,6 @@ def purchase_payload(product_id, date="2026-10-01", price="5.00"):
         "channel": "store",
         "currency": "EUR",
         "status": "confirmed",
-        "receipt_total": price,
         "notes": "Test",
         "items": [
             {
@@ -166,7 +165,6 @@ def test_summary_subtracts_return_without_making_it_a_price_observation(
         client.post("/api/purchases", json=normal, headers=headers).status_code == 201
     )
     returned = purchase_payload(identifier, "2026-10-02", "2")
-    returned["receipt_total"] = None
     returned["items"][0]["is_return"] = True
     assert (
         client.post("/api/purchases", json=returned, headers=headers).status_code == 201
@@ -236,3 +234,22 @@ def test_basket_rejects_more_precision_than_database_can_store(client, headers):
         headers=headers,
     )
     assert result.status_code == 400
+
+
+def test_import_accepts_decimal_comma_in_edited_receipt(client, headers):
+    payload = purchase_payload(None, price="5,00")
+    response = client.post(
+        "/api/import/commit", json={"purchases": [payload]}, headers=headers
+    )
+    assert response.status_code == 201, response.json
+    assert client.get("/api/purchases").json[0]["items"][0]["line_total"] == "5"
+
+
+def test_import_ignores_legacy_receipt_total(client, headers):
+    payload = purchase_payload(None, price="7.25")
+    payload["receipt_total"] = "8.00"
+    result = client.post(
+        "/api/import/commit", json={"purchases": [payload]}, headers=headers
+    )
+    assert result.status_code == 201, result.json
+    assert "receipt_total" not in client.get("/api/purchases").json[0]

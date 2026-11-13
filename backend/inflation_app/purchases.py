@@ -10,7 +10,6 @@ from .normalization import normalize_item
 from .validation import (
     json_attributes,
     ValidationError,
-    decimal_value,
     iso_date,
     text,
     object_payload,
@@ -59,7 +58,6 @@ def prepare_purchase(payload):
     if not isinstance(raw_items, list) or not raw_items or len(raw_items) > 500:
         raise ValidationError("Ein Kauf benötigt 1 bis 500 Positionen.")
     items = []
-    total = Decimal(0)
     for raw in raw_items:
         object_payload(raw)
         item = normalize_item(raw)
@@ -85,24 +83,7 @@ def prepare_purchase(payload):
                 raise ValidationError("Unbekanntes Produkt.")
         item["product_id"] = product_id
         item["product_snapshot"] = product.to_dict() if product else {}
-        total += (
-            Decimal(item["line_total"])
-            - Decimal(item["discount"])
-            + Decimal(item["deposit"])
-        ) * (-1 if item["is_return"] else 1)
         items.append(item)
-    receipt = payload.get("receipt_total")
-    data["receipt_total"] = (
-        None if receipt in (None, "") else str(decimal_value(receipt, "receipt_total"))
-    )
-    if (
-        data["status"] == "confirmed"
-        and data["receipt_total"] is not None
-        and abs(Decimal(data["receipt_total"]) - total) > Decimal(".02")
-    ):
-        raise ValidationError(
-            "Kassensumme weicht um mehr als 0,02 ab.", {"calculated_total": str(total)}
-        )
     identity = {
         key: data[key]
         for key in (
@@ -309,7 +290,6 @@ def filtered_observations(args, include_returns=False):
                         "comparison_unit",
                         "line_total",
                         "discount",
-                        "deposit",
                         "is_offer",
                         "is_return",
                     )

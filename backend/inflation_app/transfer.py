@@ -83,7 +83,6 @@ def export_csv():
         "normalized_unit",
         "line_total",
         "discount",
-        "deposit",
         "currency",
         "purchase_id",
     ]

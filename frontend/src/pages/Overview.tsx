@@ -31,7 +31,7 @@ export function Overview({
           [
             "Warenwert im Zeitraum",
             money(summary?.total_spend),
-            "Ohne Pfand · ausgewählte Positionen",
+            "Ausgewählte Positionen",
           ],
           [
             "Bestätigte Einkäufe",

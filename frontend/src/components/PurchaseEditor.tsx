@@ -1,4 +1,5 @@
-import { money } from "../api";
+import { useRef, useState } from "react";
+import { money, write } from "../api";
 import type { Item, Product, Purchase } from "../types";
 import { units } from "../types";
 import { Field } from "./Shared";
@@ -21,11 +22,55 @@ export function PurchaseEditor({
   value: editing,
   products,
   onChange,
+  refresh,
+  report,
 }: {
   value: Purchase;
   products: Product[];
   onChange: (purchase: Purchase) => void;
+  refresh: () => Promise<void>;
+  report: (message: string) => void;
 }) {
+  const [creating, setCreating] = useState(false);
+  const [createdProducts, setCreatedProducts] = useState<Product[]>([]);
+  const latest = useRef({ editing, onChange });
+  latest.current = { editing, onChange };
+  const availableProducts = [
+    ...products,
+    ...createdProducts.filter(
+      (created) => !products.some(({ id }) => id === created.id),
+    ),
+  ];
+
+  async function createProduct(index: number, item: Item) {
+    const name = window
+      .prompt("Name des neuen Produkts", item.raw_name)
+      ?.trim();
+    if (!name) return;
+    setCreating(true);
+    try {
+      const product = await write<Product>("/products", {
+        name,
+        unit: item.unit,
+      });
+      setCreatedProducts((current) => [...current, product]);
+      const { editing: current, onChange: apply } = latest.current;
+      if (current.items[index] === item) {
+        apply({
+          ...current,
+          items: current.items.map((position, i) =>
+            i === index ? { ...position, product_id: product.id } : position,
+          ),
+        });
+      }
+      await refresh();
+    } catch (error) {
+      report(String(error));
+    } finally {
+      setCreating(false);
+    }
+  }
+
   const update = (key: keyof Purchase, value: unknown) =>
     onChange({ ...editing, [key]: value });
   const updateItem = (index: number, key: keyof Item, value: unknown) =>
@@ -87,13 +132,6 @@ export function PurchaseEditor({
             <option value="confirmed">Bestätigt</option>
           </select>
         </Field>
-        <Field label="Bonsumme in € (optional)">
-          <input
-            inputMode="decimal"
-            value={editing.receipt_total ?? ""}
-            onChange={(e) => update("receipt_total", e.target.value || null)}
-          />
-        </Field>
       </div>
       <p className="hint">
         Für bestätigte Einkäufe vor Ort sind Stadt und PLZ erforderlich.
@@ -116,16 +154,24 @@ export function PurchaseEditor({
               <Field label="Produktzuordnung">
                 <select
                   value={item.product_id ?? ""}
-                  onChange={(e) =>
-                    updateItem(
-                      index,
-                      "product_id",
-                      e.target.value ? Number(e.target.value) : null,
-                    )
-                  }
+                  disabled={creating}
+                  onChange={(e) => {
+                    const selected = e.target.value;
+                    if (selected === "new") {
+                      e.target.value = String(item.product_id ?? "");
+                      void createProduct(index, item);
+                    } else {
+                      updateItem(
+                        index,
+                        "product_id",
+                        selected ? Number(selected) : null,
+                      );
+                    }
+                  }}
                 >
                   <option value="">Unbekannt / nicht zugeordnet</option>
-                  {products.map((product) => (
+                  <option value="new">+ Neues Produkt anlegen …</option>
+                  {availableProducts.map((product) => (
                     <option key={product.id} value={product.id}>
                       {product.name}
                     </option>
@@ -141,41 +187,30 @@ export function PurchaseEditor({
                   }
                 />
               </Field>
-              {(
-                [
-                  "quantity",
-                  "package_size",
-                  "line_total",
-                  "discount",
-                  "deposit",
-                ] as const
-              ).map((key, i) => (
-                <Field
-                  key={key}
-                  label={
-                    [
-                      "Packungszahl",
-                      "Inhalt je Packung",
-                      "Warenpreis € vor Rabatt, ohne Pfand",
-                      "Positionsrabatt €",
-                      "Pfand €",
-                    ][i]
-                  }
-                >
-                  <input
-                    required={key !== "package_size"}
-                    inputMode="decimal"
-                    value={item[key] ?? ""}
-                    onChange={(e) =>
-                      updateItem(
-                        index,
-                        key,
-                        e.target.value || (key === "package_size" ? null : ""),
-                      )
+              {(["quantity", "package_size", "line_total"] as const).map(
+                (key, i) => (
+                  <Field
+                    key={key}
+                    label={
+                      ["Packungszahl", "Inhalt je Packung", "Warenpreis €"][i]
                     }
-                  />
-                </Field>
-              ))}
+                  >
+                    <input
+                      required={key !== "package_size"}
+                      inputMode="decimal"
+                      value={item[key] ?? ""}
+                      onChange={(e) =>
+                        updateItem(
+                          index,
+                          key,
+                          e.target.value ||
+                            (key === "package_size" ? null : ""),
+                        )
+                      }
+                    />
+                  </Field>
+                ),
+              )}
               <Field label="Einheit des Inhalts">
                 <select
                   value={item.unit}
@@ -188,26 +223,6 @@ export function PurchaseEditor({
               </Field>
             </div>
             <div className="inline">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={item.is_offer}
-                  onChange={(e) =>
-                    updateItem(index, "is_offer", e.target.checked)
-                  }
-                />{" "}
-                Angebot
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={item.is_return}
-                  onChange={(e) =>
-                    updateItem(index, "is_return", e.target.checked)
-                  }
-                />{" "}
-                Retoure
-              </label>
               <button
                 type="button"
                 className="ghost danger"

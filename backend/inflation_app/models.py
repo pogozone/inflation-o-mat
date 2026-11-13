@@ -74,14 +74,11 @@ class Purchase(db.Model):
                 "channel",
                 "currency",
                 "status",
-                "receipt_total",
                 "notes",
                 "created_at",
                 "fingerprint",
             )
         }
-        if data["receipt_total"] is not None:
-            data["receipt_total"] = f"{Decimal(str(data['receipt_total'])):.2f}"
         data["items"] = [item.to_dict() for item in self.items]
         return data
 

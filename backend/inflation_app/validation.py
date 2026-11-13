@@ -1,5 +1,6 @@
 """Strict validation shared by manual entry and transactional imports."""
 
+import re
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
@@ -14,8 +15,11 @@ class ValidationError(ValueError):
 
 
 def decimal_value(value, field="value", positive=False, allow_zero=True):
+    raw = str(value).strip()
+    if re.fullmatch(r"[+-]?[0-9]*,[0-9]+", raw):
+        raw = raw.replace(",", ".")
     try:
-        number = Decimal(str(value))
+        number = Decimal(raw)
     except (InvalidOperation, ValueError, TypeError):
         raise ValidationError(f"{field}: gültige Dezimalzahl erforderlich.")
     if (

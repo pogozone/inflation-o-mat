@@ -20,25 +20,27 @@ export function Transfer({
   report: (message: string) => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [mapping, setMapping] = useState("{}");
   const [delimiter, setDelimiter] = useState(";");
   const [preview, setPreview] = useState<Preview | null>(null);
   const [edited, setEdited] = useState("[]");
+  const [receiptPreview, setReceiptPreview] = useState(false);
   const [checked, setChecked] = useState(false);
   const [duplicates, setDuplicates] = useState(false);
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [official, setOfficial] = useState("");
   useEffect(() => {
-    if (!file || !file.type.startsWith("image/")) {
+    if (!receiptFile || !receiptPreview) {
       setImageUrl(null);
       return;
     }
-    const url = URL.createObjectURL(file);
+    const url = URL.createObjectURL(receiptFile);
     setImageUrl(url);
     return () => URL.revokeObjectURL(url);
-  }, [file]);
+  }, [receiptFile, receiptPreview]);
   function editPurchase(index: number, purchase: Purchase) {
     if (!preview) return;
     const purchases = preview.purchases.map((current, i) =>
@@ -64,14 +66,15 @@ export function Transfer({
     }
   }
   async function inspect(receipt = false) {
-    if (!file) {
+    const selectedFile = receipt ? receiptFile : file;
+    if (!selectedFile) {
       report("Bitte zuerst eine Datei auswählen.");
       return;
     }
     let result: Preview;
     if (receipt) {
       const data = new FormData();
-      data.append("file", file);
+      data.append("file", selectedFile);
       data.append("consent", "true");
       result = await api<Preview>("/receipts/extract", {
         method: "POST",
@@ -79,12 +82,13 @@ export function Transfer({
       });
     } else {
       result = await write<Preview>("/import/preview", {
-        format: file.name.toLowerCase().endsWith(".csv") ? "csv" : "json",
-        content: await file.text(),
+        format: selectedFile.name.toLowerCase().endsWith(".csv") ? "csv" : "json",
+        content: await selectedFile.text(),
         delimiter,
         mapping: JSON.parse(mapping),
       });
     }
+    setReceiptPreview(receipt);
     setPreview(result);
     setEdited(JSON.stringify(result.purchases, null, 2));
     setChecked(false);
@@ -104,7 +108,8 @@ export function Transfer({
           <Field label="Datei auswählen">
             <input
               type="file"
-              accept=".csv,.json,.jpg,.jpeg,.png,.webp"
+              accept=".csv,.json"
+              disabled={busy}
               onChange={(e) => {
                 setFile(e.target.files?.[0] || null);
                 setPreview(null);
@@ -143,10 +148,21 @@ export function Transfer({
           <span className="eyebrow">02 / BONERKENNUNG</span>
           <h3>Beleg als Entwurf erfassen</h3>
           <p>
-            Bilddatei oben auswählen (JPG, PNG, WebP). Die KI erkennt
+            Wähle ein Belegbild (JPG, PNG, WebP). Die KI erkennt
             Positionen, kann aber Fehler machen. PDF wird noch nicht
             unterstützt.
           </p>
+          <Field label="Belegbild auswählen">
+            <input
+              type="file"
+              accept=".jpg,.jpeg,.png,.webp"
+              disabled={busy}
+              onChange={(e) => {
+                setReceiptFile(e.target.files?.[0] || null);
+                setPreview(null);
+              }}
+            />
+          </Field>
           <label className="consent">
             <input
               type="checkbox"
@@ -159,7 +175,7 @@ export function Transfer({
             </span>
           </label>
           <button
-            disabled={busy || !file || !consent}
+            disabled={busy || !receiptFile || !consent}
             onClick={() => run(() => inspect(true))}
           >
             Beleg erkennen lassen
@@ -215,6 +231,8 @@ export function Transfer({
                   <PurchaseEditor
                     value={purchase}
                     products={products}
+                    refresh={refresh}
+                    report={report}
                     onChange={(value) => editPurchase(index, value)}
                   />
                 </details>

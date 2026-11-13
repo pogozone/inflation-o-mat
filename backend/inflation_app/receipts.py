@@ -41,7 +41,6 @@ class ReceiptExtraction(BaseModel):
     city: str | None
     postal_code: str | None
     country: str | None
-    receipt_total: str | None
     currency: str | None
     items: list[ReceiptLine]
     warnings: list[str]
@@ -106,7 +105,6 @@ def receipt_to_preview(extraction, source_hash):
         "currency": extraction.currency or "EUR",
         "channel": "store",
         "status": "draft",
-        "receipt_total": extraction.receipt_total,
         "notes": "KI-Entwurf – alle Felder und Summen prüfen.",
         "items": items,
     }

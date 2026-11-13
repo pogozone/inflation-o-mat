@@ -18,4 +18,4 @@ RUN useradd --create-home appuser && chown -R appuser:appuser /app
 USER appuser
 WORKDIR /app/backend
 EXPOSE 5000
-CMD ["sh", "-c", "flask --app wsgi:app db upgrade && exec gunicorn --bind 0.0.0.0:5000 --workers 1 --threads 4 --timeout 180 wsgi:app"]
+CMD ["sh", "-c", "python startup.py && exec gunicorn --bind 0.0.0.0:5000 --workers 1 --threads 4 --timeout 180 wsgi:app"]

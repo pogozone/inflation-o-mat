@@ -54,7 +54,7 @@ def test_auth_and_csrf(app):
 
 def test_crud_totals_duplicate(client, headers):
     result = client.post(
-        "/api/purchases", json=payload(receipt_total="5.00"), headers=headers
+        "/api/purchases", json=payload(), headers=headers
     )
     assert result.status_code == 201
     identifier = result.json["id"]
@@ -63,15 +63,6 @@ def test_crud_totals_duplicate(client, headers):
         client.post("/api/purchases", json=payload(), headers=headers).status_code
         == 409
     )
-    assert (
-        client.put(
-            f"/api/purchases/{identifier}",
-            json=payload(receipt_total="6"),
-            headers=headers,
-        ).status_code
-        == 400
-    )
-    assert client.get("/api/purchases").json[0]["receipt_total"] == "5.00"
     assert (
         client.delete(f"/api/purchases/{identifier}", headers=headers).status_code
         == 200
@@ -119,7 +110,6 @@ def test_historical_metadata_survives_edit(client, headers):
         headers=headers,
     )
     purchase["notes"] = "Korrektur"
-    purchase["receipt_total"] = "5.00"
     assert (
         client.put(
             f"/api/purchases/{purchase['id']}", json=purchase, headers=headers

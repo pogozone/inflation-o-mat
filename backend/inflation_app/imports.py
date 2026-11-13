@@ -86,6 +86,7 @@ def parse_import(content, format_name, mapping=None, delimiter=None):
         purchase.pop("id", None)
         purchase.pop("created_at", None)
         purchase.pop("fingerprint", None)
+        purchase.pop("receipt_total", None)
     return {
         "purchases": purchases,
         "warnings": warnings,

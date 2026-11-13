@@ -13,7 +13,6 @@ const newPurchase = (): Purchase => ({
   channel: "store",
   currency: "EUR",
   status: "draft",
-  receipt_total: null,
   notes: "",
   items: [newItem()],
 });
@@ -94,6 +93,8 @@ export function Purchases({
           <PurchaseEditor
             value={editing}
             products={products}
+            refresh={refresh}
+            report={report}
             onChange={setEditing}
           />
           {duplicateConflict && (
@@ -133,7 +134,7 @@ export function Purchases({
                   <th>Datum</th>
                   <th>Händler / Ort</th>
                   <th>Positionen</th>
-                  <th>Waren + Pfand</th>
+                  <th>Warenwert</th>
                   <th>Status</th>
                   <th>Aktionen</th>
                 </tr>
@@ -158,8 +159,7 @@ export function Purchases({
                           (sum, item) =>
                             sum +
                             (Number(item.line_total) -
-                              Number(item.discount) +
-                              Number(item.deposit)) *
+                              Number(item.discount)) *
                               (item.is_return ? -1 : 1),
                           0,
                         ),

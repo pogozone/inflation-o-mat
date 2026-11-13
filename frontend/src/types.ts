@@ -39,7 +39,6 @@ export type Purchase = {
   channel: string;
   currency: string;
   status: string;
-  receipt_total: string | null;
   notes: string;
   items: Item[];
 };
