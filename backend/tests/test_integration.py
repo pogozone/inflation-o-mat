@@ -253,3 +253,42 @@ def test_import_ignores_legacy_receipt_total(client, headers):
     )
     assert result.status_code == 201, result.json
     assert "receipt_total" not in client.get("/api/purchases").json[0]
+
+
+def test_receipt_usage_counts_response_without_usable_positions(
+    client, headers, monkeypatch
+):
+    from types import SimpleNamespace
+    from inflation_app import receipts
+
+    usage = SimpleNamespace(input_tokens=100, output_tokens=20, total_tokens=120)
+    response = SimpleNamespace(model="test-model", usage=usage, output_parsed=None)
+    monkeypatch.setenv("OPENAI_API_KEY", "test")
+    monkeypatch.setattr(
+        receipts,
+        "OpenAI",
+        lambda **kwargs: SimpleNamespace(
+            responses=SimpleNamespace(parse=lambda **kw: response)
+        ),
+    )
+    result = client.post(
+        "/api/receipts/extract",
+        data={
+            "consent": "true",
+            "file": (io.BytesIO(b"\x89PNG\r\n\x1a\n"), "receipt.png"),
+        },
+        headers=headers,
+    )
+    assert result.status_code == 422
+    stats = client.get("/api/receipts/usage").json
+    assert (
+        stats["today"]
+        == stats["month"]
+        == {
+            "requests": 1,
+            "input_tokens": 100,
+            "output_tokens": 20,
+            "total_tokens": 120,
+        }
+    )
+    assert stats["recent"][0]["model"] == "test-model"

@@ -178,3 +178,12 @@ class AuditLog(db.Model):
         return {
             column.name: getattr(self, column.name) for column in self.__table__.columns
         }
+
+
+class ReceiptUsage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    recorded_at = db.Column(db.DateTime, nullable=False, index=True)
+    model = db.Column(db.String(255), nullable=False)
+    input_tokens = db.Column(db.BigInteger, nullable=False)
+    output_tokens = db.Column(db.BigInteger, nullable=False)
+    total_tokens = db.Column(db.BigInteger, nullable=False)

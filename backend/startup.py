@@ -4,21 +4,26 @@ from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from flask_migrate import upgrade
+from sqlalchemy import inspect
 
-from inflation_app.models import db
+from inflation_app.models import ReceiptUsage, db
 from wsgi import app
 
 LEGACY_REVISION = "c4b1e0a5d332"
-SUPPORTED_HEAD = "3a6ccaac11f2"
+SUPPORTED_HEAD = "b531bdd56e30"
 
 
-def incompatible_changes(context, metadata):
+def incompatible_changes(context, metadata, allowed_missing_table=None):
     problems = []
     for change in compare_metadata(context, metadata):
         if isinstance(change, list):
             problems.extend(f"{entry[0]}: {entry[2]}.{entry[3]}" for entry in change)
             continue
         operation = change[0]
+        if operation == "add_table" and change[1].name == allowed_missing_table:
+            continue
+        if operation == "add_index" and change[1].table.name == allowed_missing_table:
+            continue
         if operation in {"remove_table", "remove_index"}:
             continue
         if operation == "remove_column":
@@ -41,13 +46,25 @@ def update_database():
             context = MigrationContext.configure(connection)
             if context.get_current_heads() == (LEGACY_REVISION,):
                 # Never rewrite the recorded revision for a migration we do not have.
-                differences = incompatible_changes(context, db.metadata)
+                usage_table = ReceiptUsage.__table__
+                missing_usage_table = not inspect(connection).has_table(
+                    usage_table.name
+                )
+                differences = incompatible_changes(
+                    context,
+                    db.metadata,
+                    allowed_missing_table=usage_table.name
+                    if missing_usage_table
+                    else None,
+                )
                 if head != SUPPORTED_HEAD or differences:
                     operations = ", ".join(differences)
                     raise SystemExit(
                         f"Legacy schema {LEGACY_REVISION} cannot be used with "
                         f"head {head}. Schema differences: {operations or 'none'}."
                     )
+                usage_table.create(connection, checkfirst=True)
+                connection.commit()
                 print(f"Verified legacy schema {LEGACY_REVISION}.")
                 return
         upgrade()

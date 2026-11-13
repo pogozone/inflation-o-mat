@@ -3,6 +3,23 @@ import { api, write } from "../api";
 import type { Product, Purchase } from "../types";
 import { Field, JsonEditor } from "../components/Shared";
 import { PurchaseEditor } from "../components/PurchaseEditor";
+type TokenCounts = {
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+};
+type ReceiptUsage = {
+  today: TokenCounts;
+  month: TokenCounts;
+  recent: (TokenCounts & { id: number; recorded_at: string; model: string })[];
+};
+const tokenNumber = new Intl.NumberFormat("de-DE");
+const tokenTime = new Intl.DateTimeFormat("de-DE", {
+  dateStyle: "short",
+  timeStyle: "short",
+  timeZone: "Europe/Berlin",
+});
+
 type Preview = {
   purchases: Purchase[];
   warnings: string[];
@@ -31,6 +48,8 @@ export function Transfer({
   const [duplicates, setDuplicates] = useState(false);
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [usage, setUsage] = useState<ReceiptUsage | null>(null);
+  const [usageError, setUsageError] = useState(false);
   const [official, setOfficial] = useState("");
   useEffect(() => {
     if (!receiptFile || !receiptPreview) {
@@ -55,6 +74,17 @@ export function Transfer({
       .then((result) => setOfficial(JSON.stringify(result, null, 2)))
       .catch((error) => report(String(error)));
   }, []);
+  async function loadUsage() {
+    try {
+      setUsage(await api<ReceiptUsage>("/receipts/usage"));
+      setUsageError(false);
+    } catch {
+      setUsageError(true);
+    }
+  }
+  useEffect(() => {
+    void loadUsage();
+  }, []);
   async function run(action: () => Promise<void>) {
     setBusy(true);
     try {
@@ -76,13 +106,19 @@ export function Transfer({
       const data = new FormData();
       data.append("file", selectedFile);
       data.append("consent", "true");
-      result = await api<Preview>("/receipts/extract", {
-        method: "POST",
-        body: data,
-      });
+      try {
+        result = await api<Preview>("/receipts/extract", {
+          method: "POST",
+          body: data,
+        });
+      } finally {
+        void loadUsage();
+      }
     } else {
       result = await write<Preview>("/import/preview", {
-        format: selectedFile.name.toLowerCase().endsWith(".csv") ? "csv" : "json",
+        format: selectedFile.name.toLowerCase().endsWith(".csv")
+          ? "csv"
+          : "json",
         content: await selectedFile.text(),
         delimiter,
         mapping: JSON.parse(mapping),
@@ -148,9 +184,8 @@ export function Transfer({
           <span className="eyebrow">02 / BONERKENNUNG</span>
           <h3>Beleg als Entwurf erfassen</h3>
           <p>
-            Wähle ein Belegbild (JPG, PNG, WebP). Die KI erkennt
-            Positionen, kann aber Fehler machen. PDF wird noch nicht
-            unterstützt.
+            Wähle ein Belegbild (JPG, PNG, WebP). Die KI erkennt Positionen,
+            kann aber Fehler machen. PDF wird noch nicht unterstützt.
           </p>
           <Field label="Belegbild auswählen">
             <input
@@ -186,6 +221,54 @@ export function Transfer({
           </p>
         </section>
       </div>
+      <section className="panel">
+        <h3>Tokenverbrauch der Belegerkennung</h3>
+        {usageError ? (
+          <p role="alert">Tokenverbrauch konnte nicht geladen werden.</p>
+        ) : !usage ? (
+          <p>Tokenverbrauch wird geladen …</p>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Zeitraum oder Erkennung</th>
+                  <th>Modell</th>
+                  <th>Eingabe</th>
+                  <th>Ausgabe</th>
+                  <th>Gesamt</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  { ...usage.today, id: "today", label: "Heute", model: "–" },
+                  {
+                    ...usage.month,
+                    id: "month",
+                    label: "Dieser Monat",
+                    model: "–",
+                  },
+                  ...usage.recent.map((row) => ({
+                    ...row,
+                    label: tokenTime.format(new Date(row.recorded_at)),
+                  })),
+                ].map((row) => (
+                  <tr key={row.id}>
+                    <th scope="row">{row.label}</th>
+                    <td>{row.model}</td>
+                    <td>{tokenNumber.format(row.input_tokens)}</td>
+                    <td>{tokenNumber.format(row.output_tokens)}</td>
+                    <td>{tokenNumber.format(row.total_tokens)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {usage.recent.length > 0 && (
+              <p className="hint">Bis zu 20 letzte Erkennungen.</p>
+            )}
+          </div>
+        )}
+      </section>
       {preview && (
         <section className="panel">
           <span className="eyebrow">PRÜFEN & KORRIGIEREN</span>
