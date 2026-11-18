@@ -12,13 +12,22 @@ export function Products({
   report: (message: string) => void;
 }) {
   const [editing, setEditing] = useState<Partial<Product> | null>(null);
-  const [attributes, setAttributes] = useState("{}");
   const [mergeSource, setMergeSource] = useState<Product | null>(null);
   const [mergeTarget, setMergeTarget] = useState("");
   const [busy, setBusy] = useState(false);
+  const [ascending, setAscending] = useState(true);
+  const [extraCategories, setExtraCategories] = useState<string[]>([]);
+  const categories = [
+    ...new Set([
+      ...products.map((product) => product.category).filter(Boolean),
+      ...extraCategories,
+    ]),
+  ].sort((a, b) => a.localeCompare(b, "de"));
+  const sorted = [...products].sort(
+    (a, b) => a.name.localeCompare(b.name, "de") * (ascending ? 1 : -1),
+  );
   function open(product: Partial<Product>) {
     setEditing(product);
-    setAttributes(JSON.stringify(product.attributes || {}, null, 2));
   }
   async function save(event: React.FormEvent) {
     event.preventDefault();
@@ -27,7 +36,8 @@ export function Products({
     try {
       await write(
         editing.id ? `/products/${editing.id}` : "/products",
-        { ...editing, attributes: JSON.parse(attributes) },
+        // Marke und Merkmale bleiben für Bestandsdaten unverändert erhalten.
+        { brand: "", attributes: {}, ...editing },
         editing.id ? "PUT" : "POST",
       );
       await refresh();
@@ -48,7 +58,7 @@ export function Products({
       !mergeSource ||
       !target ||
       !confirm(
-        `„${mergeSource.name}“ (${mergeSource.brand || "ohne Marke"}) mit „${target.name}“ (${target.brand || "ohne Marke"}) zusammenführen? Die Historie bleibt erhalten.`,
+        `„${mergeSource.name}“ mit „${target.name}“ zusammenführen? Die Historie bleibt erhalten.`,
       )
     )
       return;
@@ -77,12 +87,10 @@ export function Products({
           onClick={() =>
             open({
               name: "",
-              brand: "",
               category: "",
               unit: "Stück",
               tags: [],
               aliases: [],
-              attributes: {},
             })
           }
         >
@@ -110,8 +118,7 @@ export function Products({
                 )
                 .map((product) => (
                   <option key={product.id} value={product.id}>
-                    {product.name} · {product.brand || "ohne Marke"} · #
-                    {product.id}
+                    {product.name} · #{product.id}
                   </option>
                 ))}
             </select>
@@ -134,17 +141,43 @@ export function Products({
         <form className="panel editor" onSubmit={save}>
           <h2>{editing.id ? "Produkt bearbeiten" : "Neues Produkt"}</h2>
           <div className="form-grid">
-            {(["name", "brand", "category"] as const).map((key, index) => (
-              <Field key={key} label={["Name", "Marke", "Kategorie"][index]}>
-                <input
-                  required={key === "name"}
-                  value={editing[key]}
-                  onChange={(e) =>
-                    setEditing({ ...editing, [key]: e.target.value })
+            <Field label="Name">
+              <input
+                required
+                value={editing.name}
+                onChange={(e) =>
+                  setEditing({ ...editing, name: e.target.value })
+                }
+              />
+            </Field>
+            <Field label="Kategorie">
+              <select
+                value={editing.category || ""}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === "new") {
+                    e.target.value = editing.category || "";
+                    const created = window
+                      .prompt("Name der neuen Kategorie")
+                      ?.trim();
+                    if (!created) return;
+                    if (!categories.includes(created))
+                      setExtraCategories((current) => [...current, created]);
+                    setEditing({ ...editing, category: created });
+                  } else {
+                    setEditing({ ...editing, category: value });
                   }
-                />
-              </Field>
-            ))}
+                }}
+              >
+                <option value="">Keine Kategorie</option>
+                {categories.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+                <option value="new">+ Neue Kategorie anlegen …</option>
+              </select>
+            </Field>
             <Field label="Einheit">
               <select
                 value={editing.unit}
@@ -180,18 +213,11 @@ export function Products({
               </Field>
             ))}
           </div>
-          <Field
-            label={
-              'Flexible Merkmale als JSON, z. B. {"bio": true, "Fettgehalt": "3,5 %"}'
-            }
-          >
-            <textarea
-              className="code"
-              rows={5}
-              value={attributes}
-              onChange={(e) => setAttributes(e.target.value)}
-            />
-          </Field>
+          <p className="hint">
+            Bon-Aliasse sind Schreibweisen, wie das Produkt auf dem Kassenzettel
+            steht (z. B. „TR.MILCH 3,5 1L“). Bei der Bonerkennung werden so
+            bereits bekannte Bon-Texte exakt diesem Produkt zugeordnet.
+          </p>
           <div className="actions">
             <button disabled={busy}>
               {busy ? "Speichert …" : "Produkt speichern"}
@@ -216,15 +242,21 @@ export function Products({
             <table>
               <thead>
                 <tr>
-                  <th>Produkt</th>
-                  <th>Marke</th>
+                  <th aria-sort={ascending ? "ascending" : "descending"}>
+                    <button
+                      className="text-button"
+                      onClick={() => setAscending((value) => !value)}
+                    >
+                      Produkt {ascending ? "↑" : "↓"}
+                    </button>
+                  </th>
                   <th>Kategorie</th>
-                  <th>Merkmale & Tags</th>
+                  <th>Tags</th>
                   <th>Aktionen</th>
                 </tr>
               </thead>
               <tbody>
-                {products.map((product) => (
+                {sorted.map((product) => (
                   <tr key={product.id}>
                     <td>
                       <strong>{product.name}</strong>
@@ -232,16 +264,8 @@ export function Products({
                         #{product.id} · {product.unit}
                       </small>
                     </td>
-                    <td>{product.brand || "–"}</td>
                     <td>{product.category || "–"}</td>
-                    <td>
-                      {product.tags.join(", ")}
-                      <small>
-                        {Object.entries(product.attributes)
-                          .map(([key, value]) => `${key}: ${String(value)}`)
-                          .join(" · ")}
-                      </small>
-                    </td>
+                    <td>{product.tags.join(", ")}</td>
                     <td>
                       <button
                         className="text-button"

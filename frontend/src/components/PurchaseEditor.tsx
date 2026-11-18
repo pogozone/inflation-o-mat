@@ -138,15 +138,15 @@ export function PurchaseEditor({
         Dezimalwerte mit Punkt eingeben, z. B. 2.49.
       </p>
       {editing.items.map((item, index) => {
-        const quantity = Number(item.quantity) * Number(item.package_size);
+        const packs = Number(item.quantity);
+        const quantity = packs * Number(item.package_size);
         const normalizedQuantity = ["g", "ml"].includes(item.unit)
           ? quantity / 1000
           : quantity;
+        const goodsPrice = Number(item.line_total) - Number(item.discount);
         const preview =
-          normalizedQuantity > 0
-            ? (Number(item.line_total) - Number(item.discount)) /
-              normalizedQuantity
-            : null;
+          normalizedQuantity > 0 ? goodsPrice / normalizedQuantity : null;
+        const packPrice = packs > 0 ? goodsPrice / packs : null;
         return (
           <fieldset className="position" key={index}>
             <legend>Position {index + 1}</legend>
@@ -161,11 +161,23 @@ export function PurchaseEditor({
                       e.target.value = String(item.product_id ?? "");
                       void createProduct(index, item);
                     } else {
-                      updateItem(
-                        index,
-                        "product_id",
-                        selected ? Number(selected) : null,
+                      const assigned = availableProducts.find(
+                        (product) => product.id === Number(selected),
                       );
+                      onChange({
+                        ...editing,
+                        items: editing.items.map((position, i) =>
+                          i === index
+                            ? {
+                                ...position,
+                                product_id: selected
+                                  ? Number(selected)
+                                  : null,
+                                unit: assigned?.unit ?? position.unit,
+                              }
+                            : position,
+                        ),
+                      });
                     }
                   }}
                 >
@@ -192,7 +204,7 @@ export function PurchaseEditor({
                   <Field
                     key={key}
                     label={
-                      ["Packungszahl", "Inhalt je Packung", "Warenpreis €"][i]
+                      ["Packungszahl", "Inhalt je Packung", "Warensumme €"][i]
                     }
                   >
                     <input
@@ -237,11 +249,12 @@ export function PurchaseEditor({
               </button>
             </div>
             <p className="hint">
-              Unverbindliche Vorschau:{" "}
+              Warensumme = Stückzahl × Produktpreis. Unverbindliche Vorschau:{" "}
               {preview === null
                 ? "Menge ergänzen"
                 : `${money(preview)} / ${item.unit === "g" ? "kg" : item.unit === "ml" ? "l" : item.unit}`}
-              . Verbindlich rechnet der Server. Bei loser Ware: Packungszahl 1,
+              {packPrice !== null && ` · ${money(packPrice)} je Packung`}.
+              Verbindlich rechnet der Server. Bei loser Ware: Packungszahl 1,
               Inhalt = Gesamtgewicht.
             </p>
           </fieldset>

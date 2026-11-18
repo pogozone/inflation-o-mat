@@ -88,15 +88,22 @@ export function Baskets({
               <select
                 required
                 value={item.product_id || ""}
-                onChange={(e) =>
+                onChange={(e) => {
+                  const assigned = products.find(
+                    (product) => product.id === Number(e.target.value),
+                  );
                   setItems(
                     items.map((row, i) =>
                       i === index
-                        ? { ...row, product_id: Number(e.target.value) }
+                        ? {
+                            ...row,
+                            product_id: Number(e.target.value),
+                            unit: assigned?.unit ?? row.unit,
+                          }
                         : row,
                     ),
-                  )
-                }
+                  );
+                }}
               >
                 <option value="" disabled>
                   Auswählen
